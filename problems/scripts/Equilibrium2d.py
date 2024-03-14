@@ -117,6 +117,51 @@ model_v = dde.Model(data, net_v)
 model_u.compile(OPTIMIZER, lr=LEARNING_RATE, loss_weights=LOSS_WEIGHTS)
 model_v.compile(OPTIMIZER, lr=LEARNING_RATE, loss_weights=LOSS_WEIGHTS)
 
+# Initial model training
+losshistory_u, trainstate_u = model_u.train(iterations=ITERATIONS, batch_size=BATCH_SIZE)
+losshistory_v, trainstate_v = model_v.train(iterations=ITERATIONS, batch_size=BATCH_SIZE)
+
+# Residual Adaptive Refinement (RAR) for both models
+X = geom.random_points(1000)
+err_u = 1
+err_v = 1
+while err_u > 0.01 or err_v > 0.01:
+    # RAR for u model
+    f_u = model_u.predict(X, operator=pde1)
+    err_u = np.mean(np.abs(f_u))
+    print("Mean residual (u): %.3e" % (err_u))
+    x_id_u = np.argmax(np.abs(f_u))
+    print("Adding new point for u:", X[x_id_u], "\n")
+    data.add_anchors(X[x_id_u])
+    early_stopping_u = dde.callbacks.EarlyStopping(min_delta=1e-4, patience=2000)
+    model_u.compile(OPTIMIZER, lr=LEARNING_RATE, loss_weights=LOSS_WEIGHTS)
+    model_u.train(
+        iterations=100,
+        disregard_previous_best=True,
+        batch_size=BATCH_SIZE,
+        callbacks=[early_stopping_u],
+    )
+
+    # RAR for v model
+    f_v = model_v.predict(X, operator=pde2)
+    err_v = np.mean(np.abs(f_v))
+    print("Mean residual (v): %.3e" % (err_v))
+    x_id_v = np.argmax(np.abs(f_v))
+    print("Adding new point for v:", X[x_id_v], "\n")
+    data.add_anchors(X[x_id_v])
+    early_stopping_v = dde.callbacks.EarlyStopping(min_delta=1e-4, patience=2000)
+    model_v.compile(OPTIMIZER, lr=LEARNING_RATE, loss_weights=LOSS_WEIGHTS)
+    model_v.train(
+        iterations=100,
+        disregard_previous_best=True,
+        batch_size=BATCH_SIZE,
+        callbacks=[early_stopping_v],
+    )
+
+# Save the final trained models
+model_u.save("./trained_PINN_model_u")
+model_v.save("./trained_PINN_model_v")
+
 # Train the models
 losshistory_u, trainstate_u = model_u.train(iterations=ITERATIONS, batch_size=BATCH_SIZE)
 losshistory_v, trainstate_v = model_v.train(iterations=ITERATIONS, batch_size=BATCH_SIZE)
