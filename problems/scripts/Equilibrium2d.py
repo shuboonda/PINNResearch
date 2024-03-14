@@ -113,7 +113,7 @@ model_u = dde.Model(data, net_u)
 # Create the model for the second PDE
 model_v = dde.Model(data, net_v)
 
-# Compile the models with the chosen optimizer and learning rate
+# Compile the models with the chosen optimizer, learning rate, and loss weights
 model_u.compile(OPTIMIZER, lr=LEARNING_RATE, loss_weights=LOSS_WEIGHTS)
 model_v.compile(OPTIMIZER, lr=LEARNING_RATE, loss_weights=LOSS_WEIGHTS)
 
