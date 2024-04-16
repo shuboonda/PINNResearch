@@ -1,3 +1,4 @@
+
 # Import necessary libraries
 import deepxde as dde  # Deep learning framework for solving differential equations
 import matplotlib.pyplot as plt  # For creating static, animated, and interactive visualizations in Python
@@ -35,10 +36,7 @@ OPTIMIZER = "adam"  # Optimizer for the first part of the training
 BATCH_SIZE = 32  # Batch size
 
 # Define constants for the PDEs
-## TODO - Confirm E and G are no longer needed
 
-E = 200e9  # Elastic modulus
-G = 77e9  # Shear modulus
 nu = 0.3  # Poisson's ratio
 
 # Define PDEs
@@ -69,39 +67,52 @@ def pde2(X, v, u):
         v_yy + ((1 - nu) / 2) * v_xx + ((1 - nu) / 2) * u_xy
     )  # Second PDE
 
+def boundary_right(X, on_boundary):
+    x, _ = X
+    return on_boundary and np.isclose(x, WIDTH)  # Check if on the right boundary
+
+
+def boundary_left(X, on_boundary):
+    x, _ = X
+    return on_boundary and np.isclose(x, 0)  # Check if on the left boundary
+
+
+def boundary_top(X, on_boundary):
+    _, y = X
+    return on_boundary and np.isclose(y, LENGTH)  # Check if on the upper boundary
+
+
+def boundary_bottom(X, on_boundary):
+    _, y = X
+    return on_boundary and np.isclose(y, 0)  # Check if on the lower boundary
+
 # Define Dirichlet and Neumann boundary conditions
+def constraint_bottom(X):
+    return np.zeros((len(X), 1))  # At the bottom, U and V are kept as zero
 
-# Define boundary conditions for u
-def boundary_conditions_u(X, on_boundary):
-    x, y = X[:, 0], X[:, 1]
-    return np.where(
-        on_boundary,
-        # Specify boundary conditions here
-        # For example, Dirichlet boundary condition u(x, y) = 0 at all boundaries
-        0,
-        None,
-    )
+def constraint_top(X):
+    return (np.ones((len(X), 1)) * 0.001)  # At the top, V is kept as 0.001
 
-# Define boundary conditions for v
-def boundary_conditions_v(X, on_boundary):
-    x, y = X[:, 0], X[:, 1]
-    return np.where(
-        on_boundary,
-        # Specify boundary conditions here
-        # For example, Neumann boundary condition ∂v/∂n = 0 (where n is the outward normal vector) at all boundaries
-        0,
-        None,
-    )
+def func_zero(X):
+    return np.zeros((len(X), 1))  # On the other boundaries, the derivative of U, V is kept at 0 (Neumann condition)
 
 # Define geometry
 geom = dde.geometry.Rectangle([0, 0], [1, 1])  # 1x1 plate centered at (0.5, 0.5)
 
-# Define boundary conditions for u and v
-bc_u = dde.DirichletBC(geom, boundary_conditions_u)
-bc_v = dde.DirichletBC(geom, boundary_conditions_v)
+# Define boundary conditions for U
+bc_U_l = dde.NeumannBC(geom, func_zero, boundary_left)  # Left boundary for U
+bc_U_r = dde.NeumannBC(geom, func_zero, boundary_right)  # Right boundary for U
+bc_U_up = dde.NeumannBC(geom, func_zero, boundary_top)  # Upper boundary for U
+bc_U_low = dde.DirichletBC(geom, constraint_bottom, boundary_bottom)  # Lower boundary for U
+
+# Define boundary conditions for V
+bc_V_l = dde.NeumannBC(geom, func_zero, boundary_left)  # Left boundary for V
+bc_V_r = dde.NeumannBC(geom, func_zero, boundary_right)  # Right boundary for V
+bc_V_up = dde.DirichletBC(geom, constraint_top, boundary_top)  # Upper boundary for V
+bc_V_low = dde.DirichletBC(geom, constraint_bottom, boundary_bottom)  # Lower boundary for V
 
 # Define data for the PDEs
-data = dde.data.PDE(geom, pde1, [bc_u, bc_v], num_domain=SAMPLE_POINTS, num_boundary=SAMPLE_POINTS)
+data = dde.data.PDE(geom, [pde1, pde2], [bc_U_l, bc_U_r, bc_U_up, bc_U_low, bc_V_l, bc_V_r, bc_V_up, bc_V_low], num_domain=SAMPLE_POINTS, num_boundary=SAMPLE_POINTS)
 
 # Define the neural network models for u and v
 net_u = dde.maps.FNN(ARCHITECTURE, ACTIVATION, INITIALIZER)  # Feed-forward neural network for u
@@ -251,4 +262,3 @@ fig.colorbar(surf4, ax=ax, label='Residual (v)')
 
 # Show the plot
 plt.show()
-
